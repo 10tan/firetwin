@@ -49,6 +49,58 @@ interface SimulationStep {
   };
 }
 
+function MathBlock({ formula, label, description }: { formula: string; label: string; description?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const renderMath = () => {
+      if (containerRef.current && (window as any).katex) {
+        try {
+          (window as any).katex.render(formula, containerRef.current, {
+            displayMode: true,
+            throwOnError: false
+          });
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    renderMath();
+    // Retry if KaTeX script loaded asynchronously
+    const timer = setTimeout(renderMath, 300);
+    return () => clearTimeout(timer);
+  }, [formula]);
+
+  return (
+    <div style={{ padding: '14px 16px', background: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+      <h4 style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)', marginBottom: '8px' }}>{label}</h4>
+      <div
+        ref={containerRef}
+        style={{
+          padding: '10px 14px',
+          background: '#FFFFFF',
+          borderRadius: '6px',
+          border: '1px solid #E2E8F0',
+          color: 'var(--accent-blue)',
+          fontSize: '15px',
+          overflowX: 'auto',
+          minHeight: '44px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-blue)' }}>{formula}</span>
+      </div>
+      {description && (
+        <p style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '8px', lineHeight: 1.4 }}>
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'cfd' | 'evacuation' | 'structural' | 'math'>('cfd');
   const [modelMode, setModelMode] = useState<'surrogate' | 'les'>('les');
@@ -542,50 +594,36 @@ export default function App() {
                   Governing Partial Differential Equations & Mathematical Formulations
                 </h2>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px' }}>
-                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>1. Buoyancy-Driven Navier-Stokes LES Solver</h4>
-                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
-                      ∂u/∂t + (u · ∇)u = -(1/ρ₀)∇p + (ν + ν_sgs)∇²u + g·β·(T - T₀)ĵ
-                    </p>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-                      Smagorinsky subgrid-scale turbulence closure: ν_sgs = (C_s · Δ)² √(2 S_ij S_ij)
-                    </p>
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <MathBlock
+                    label="1. Incompressible Boussinesq Navier-Stokes LES Solver"
+                    formula="\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = -\frac{1}{\rho_0}\nabla p + (\nu + \nu_{\text{sgs}})\nabla^2\mathbf{u} + g \beta (T - T_0)\hat{\mathbf{j}}"
+                    description="Smagorinsky subgrid-scale turbulence closure: \nu_{\text{sgs}} = (C_s \Delta)^2 \sqrt{2 S_{ij} S_{ij}}, \text{ where } S_{ij} = \frac{1}{2}\left(\nabla \mathbf{u} + (\nabla \mathbf{u})^T\right)."
+                  />
 
-                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>2. P1 Spherical Harmonics Radiative Transfer</h4>
-                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
-                      -∇ · [ (1 / 3(a + σ_s)) ∇G ] + a·G = 4·a·σ·T⁴
-                    </p>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-                      Radiative heat source term: q_rad = a · (G - 4σT⁴)
-                    </p>
-                  </div>
+                  <MathBlock
+                    label="2. P1 Spherical Harmonics Radiative Heat Transfer"
+                    formula="-\nabla \cdot \left[ \frac{1}{3(a + \sigma_s)} \nabla G \right] + a G = 4 a \sigma T^4"
+                    description="Net radiative heat source/sink term: q_{\text{rad}} = a \left( G - 4 \sigma T^4 \right)."
+                  />
 
-                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>3. Combustion & t² Fire Growth Rate</h4>
-                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
-                      Q̇(t) = min( α · t², Q̇_peak ) &nbsp;|&nbsp; ∂Y_k/∂t + u · ∇Y_k = D_k ∇²Y_k + ω̇_k
-                    </p>
-                  </div>
+                  <MathBlock
+                    label="3. Combustion & t² Fire Growth Rate"
+                    formula="\dot{Q}(t) = \min\left( \alpha t^2, \dot{Q}_{\text{peak}} \right) \quad \text{and} \quad \frac{\partial Y_k}{\partial t} + \mathbf{u} \cdot \nabla Y_k = D_k \nabla^2 Y_k + \dot{\omega}_k"
+                    description="Advection-diffusion-reaction for soot, toxic smoke, and oxygen depletion."
+                  />
 
-                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>4. Thermal-Structural Degradation & Eurocode 3</h4>
-                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
-                      T_ISO(t) = 20 + 345 log₁₀(8 t_min + 1) &nbsp;|&nbsp; dT_s/dt = (q'' / ρ c_p) · (A_m / V)
-                    </p>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-                      Eurocode steel yield reduction factor k_y(T) and stiffness reduction factor k_E(T).
-                    </p>
-                  </div>
+                  <MathBlock
+                    label="4. Thermal-Structural Degradation & Eurocode 3 Standards"
+                    formula="T_{\text{ISO}}(t) = 20 + 345 \log_{10}(8 t_{\text{min}} + 1) \quad \text{and} \quad \frac{d T_s}{d t} = \frac{q''}{\rho c_p} \left( \frac{A_m}{V} \right)"
+                    description="Eurocode 3 yield strength reduction factor k_y(T) and stiffness reduction factor k_E(T)."
+                  />
 
-                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>5. Helbing Social Force Evacuation Model</h4>
-                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
-                      m_i (d v_i / dt) = f_des + Σ f_soc + Σ f_wall &nbsp;|&nbsp; v_des = v₀ max(0.2, 1 - 0.65 K_ext)
-                    </p>
-                  </div>
+                  <MathBlock
+                    label="5. Helbing Social Force Pedestrian Evacuation Model"
+                    formula="m_i \frac{d \mathbf{v}_i}{d t} = \frac{v_i^{\text{des}} \mathbf{e}_i^{\text{des}} - \mathbf{v}_i}{\tau} + \sum_{j \neq i} \mathbf{f}_{ij}^{\text{soc}} + \sum_{w} \mathbf{f}_{iw}^{\text{wall}}"
+                    description="Pedestrian speed attenuation in smoke: v_i^{\text{des}} = v_0 \max\left(0.2, 1 - 0.65 K_{\text{ext}}\right)."
+                  />
                 </div>
               </div>
             ) : (
