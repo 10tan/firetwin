@@ -247,8 +247,18 @@ export default function App() {
   const [fireAlpha, setFireAlpha] = useState<number>(0.0469); // Fast growth
   const [hrrPeak, setHrrPeak] = useState<number>(1500);
   const [useRLWayfinding, setUseRLWayfinding] = useState<boolean>(false);
-  const [doorOpen, setDoorOpen] = useState<boolean>(true);
+  const [door1Open, setDoor1Open] = useState<boolean>(true);
+  const [door2Open, setDoor2Open] = useState<boolean>(false);
   const [scenarioId, setScenarioId] = useState<string>('demo-scen-01');
+
+  // Dynamic Editable Building Layout State
+  const [fireRow, setFireRow] = useState<number>(7);
+  const [fireCol, setFireCol] = useState<number>(2);
+  const [storyLevel, setStoryLevel] = useState<number>(1);
+  const [layoutPreset, setLayoutPreset] = useState<string>('3-room');
+  const [roomLength, setRoomLength] = useState<number>(8.0);
+  const [roomWidth, setRoomWidth] = useState<number>(6.0);
+  const [ceilingHeight, setCeilingHeight] = useState<number>(3.0);
 
   const handleDownloadPDF = async () => {
     try {
@@ -273,6 +283,30 @@ export default function App() {
   const [history, setHistory] = useState<SimulationStep[]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const gridCols = 12;
+    const gridRows = 10;
+
+    const cellW = (width - 20) / gridCols;
+    const cellH = (height - 20) / gridRows;
+
+    const col = Math.floor((clickX - 10) / cellW);
+    const row = Math.floor((clickY - 10) / cellH);
+
+    if (col >= 0 && col < gridCols && row >= 0 && row < gridRows) {
+      setFireRow(row);
+      setFireCol(col);
+    }
+  };
+
   // Generate synthetic timesteps for responsive simulation UI
   useEffect(() => {
     const steps: SimulationStep[] = [];
@@ -285,28 +319,33 @@ export default function App() {
       const kE = Math.max(0.02, 1.0 - (tempRise > 100 ? (tempRise - 100) * 0.0014 : 0));
       const escaped = Math.min(25, Math.floor(t * (useRLWayfinding ? 0.75 : 0.5)));
 
-      // Grid sample 10x12 (Room 0: cols 0..3, Room 1: cols 4..7, Room 2: cols 8..11)
-      const fireRow = 7; // Fire at bottom of Room 0
-      const fireCol = 2; // Center of Room 0
-
+      // Grid sample 10x12 dynamically built from fireRow, fireCol, door1Open, door2Open
       const grid: number[][] = [];
       for (let r = 0; r < 10; r++) {
         const row: number[] = [];
         for (let c = 0; c < 12; c++) {
           let localT = 20.0;
 
-          // Wall isolation check
+          // Room boundary indices
           const isRoom0 = c <= 3;
           const isRoom1 = c >= 4 && c <= 7;
           const isRoom2 = c >= 8;
 
-          if (isRoom0) {
-            // Plume physics in Room 0: rising heat + ceiling layer accumulation
+          const fireInRoom0 = fireCol <= 3;
+          const fireInRoom1 = fireCol >= 4 && fireCol <= 7;
+          const fireInRoom2 = fireCol >= 8;
+
+          const currentRoomHasFire =
+            (isRoom0 && fireInRoom0) ||
+            (isRoom1 && fireInRoom1) ||
+            (isRoom2 && fireInRoom2);
+
+          if (currentRoomHasFire) {
+            // Plume physics in active fire room
             const dx = c - fireCol;
             const dy = fireRow - r; // dy > 0 means above fire
 
             if (dy >= 0) {
-              // Plume width widens with height
               const plumeRadius = 1.0 + dy * 0.35;
               const distFromPlumeAxis = Math.abs(dx);
               if (distFromPlumeAxis <= plumeRadius) {
@@ -319,16 +358,23 @@ export default function App() {
                 localT = Math.max(localT, ceilingT);
               }
             } else {
-              // Conduction downwards near fire base
               const distBase = Math.sqrt(dx*dx + dy*dy);
               localT = Math.max(20, 20 + tempRise * Math.exp(-distBase * 0.8));
             }
-          } else if (isRoom1 && doorOpen) {
-            // Spillover into Room 1 only if door is open (spill across ceiling r <= 3)
-            if (r <= 3) {
-              const spillDist = c - 3;
-              const spillT = 20 + tempRise * 0.45 * Math.exp(-spillDist * 0.4 - r * 0.3);
-              localT = Math.max(localT, spillT);
+          } else {
+            // Spillover physics across open doors
+            if (isRoom1 && fireInRoom0 && door1Open) {
+              if (r <= 3) {
+                const spillDist = c - 3;
+                const spillT = 20 + tempRise * 0.45 * Math.exp(-spillDist * 0.4 - r * 0.3);
+                localT = Math.max(localT, spillT);
+              }
+            } else if (isRoom2 && isRoom1 && door2Open) {
+              if (r <= 3) {
+                const spillDist = c - 7;
+                const spillT = 20 + tempRise * 0.3 * Math.exp(-spillDist * 0.4 - r * 0.3);
+                localT = Math.max(localT, spillT);
+              }
             }
           }
 
@@ -452,9 +498,9 @@ export default function App() {
         }
       }
 
-      // Fire Source pulse indicator at fireRow = 7, fireCol = 2
-      const fireX = 10 + (2 + 0.5) * cellW;
-      const fireY = 10 + (7 + 0.5) * cellH;
+      // Fire Source pulse indicator at fireRow, fireCol
+      const fireX = 10 + (fireCol + 0.5) * cellW;
+      const fireY = 10 + (fireRow + 0.5) * cellH;
 
       ctx.beginPath();
       ctx.arc(fireX, fireY, 14 + Math.sin(Date.now() * 0.01) * 3, 0, Math.PI * 2);
@@ -480,20 +526,27 @@ export default function App() {
     ctx.lineWidth = 4;
 
     ctx.beginPath();
-    // Wall between Room 0 and Room 1 with door opening at top if doorOpen is true
+    // Wall 1 between Room 0 and Room 1 with door opening if door1Open is true
     ctx.moveTo(10 + roomWidth, 10);
-    ctx.lineTo(10 + roomWidth, doorOpen ? height * 0.35 : height - 10);
-    if (doorOpen) {
-      // Draw door frame indicator
+    ctx.lineTo(10 + roomWidth, door1Open ? height * 0.35 : height - 10);
+    if (door1Open) {
       ctx.strokeStyle = '#1F4E79';
       ctx.lineWidth = 2;
       ctx.strokeRect(10 + roomWidth - 3, height * 0.35, 6, 24);
       ctx.strokeStyle = '#64748B';
       ctx.lineWidth = 4;
     }
-    // Solid wall between Room 1 and Room 2
+
+    // Wall 2 between Room 1 and Room 2 with door opening if door2Open is true
     ctx.moveTo(10 + roomWidth * 2, 10);
-    ctx.lineTo(10 + roomWidth * 2, height - 10);
+    ctx.lineTo(10 + roomWidth * 2, door2Open ? height * 0.35 : height - 10);
+    if (door2Open) {
+      ctx.strokeStyle = '#1F4E79';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(10 + roomWidth * 2 - 3, height * 0.35, 6, 24);
+      ctx.strokeStyle = '#64748B';
+      ctx.lineWidth = 4;
+    }
     ctx.stroke();
 
     if (activeTab === 'evacuation') {
@@ -626,44 +679,136 @@ export default function App() {
       {/* Main Container */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '260px 1fr 340px', gap: '1px', background: 'var(--border-color)' }}>
         
-        {/* Left Sidebar: Story & Floorplan Tree */}
-        <aside style={{ background: 'var(--bg-card)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Left Sidebar: Story & Floorplan Tree & Layout Editor */}
+        <aside style={{ background: 'var(--bg-card)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
           <div>
-            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              Building Layout Tree
+            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+              Building Layout Configurator
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'var(--accent-blue-light)', color: 'var(--accent-blue)', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Building size={16} /> Story 1 (Ground Level)
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                  Floorplan Preset
+                </label>
+                <select
+                  value={layoutPreset}
+                  onChange={(e) => {
+                    setLayoutPreset(e.target.value);
+                    if (e.target.value === 'single-hall') {
+                      setDoor1Open(true);
+                      setDoor2Open(true);
+                    } else if (e.target.value === '3-room') {
+                      setDoor1Open(true);
+                      setDoor2Open(false);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '12px' }}
+                >
+                  <option value="3-room">3-Compartment Office (Default)</option>
+                  <option value="single-hall">Single Open Hallway</option>
+                  <option value="shaft">2-Story Stairwell Shaft</option>
+                </select>
               </div>
-              <div style={{ padding: '8px 12px 8px 28px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                • Room 01 (Fire Cell)
-              </div>
-              <div style={{ padding: '8px 12px 8px 28px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                • Room 02 (Corridor)
-              </div>
-              <div style={{ padding: '8px 12px 8px 28px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                • Room 03 (Stairwell)
+
+              <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'var(--accent-blue-light)', color: 'var(--accent-blue)', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Building size={16} /> Story {storyLevel} (Ground Level)
               </div>
             </div>
           </div>
 
           <div>
-            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              Ventilation & Doors
+            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+              Door & Vent Openings
             </h3>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-              <input
-                type="checkbox"
-                checked={doorOpen}
-                onChange={(e) => setDoorOpen(e.target.checked)}
-              />
-              Inter-room Door Open
-            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={door1Open}
+                  onChange={(e) => setDoor1Open(e.target.checked)}
+                />
+                Door 1 (Room 01 ↔ 02) Open
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={door2Open}
+                  onChange={(e) => setDoor2Open(e.target.checked)}
+                />
+                Door 2 (Room 02 ↔ 03) Open
+              </label>
+            </div>
           </div>
 
           <div>
-            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+              Room Geometry & Volume
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>
+                  Floor Length L: <b>{roomLength} m</b>
+                </label>
+                <input
+                  type="range"
+                  min={5}
+                  max={20}
+                  step={0.5}
+                  value={roomLength}
+                  onChange={(e) => setRoomLength(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent-blue)' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>
+                  Floor Width W: <b>{roomWidth} m</b>
+                </label>
+                <input
+                  type="range"
+                  min={4}
+                  max={15}
+                  step={0.5}
+                  value={roomWidth}
+                  onChange={(e) => setRoomWidth(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent-blue)' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>
+                  Ceiling Height H: <b>{ceilingHeight} m</b>
+                </label>
+                <input
+                  type="range"
+                  min={2.4}
+                  max={6.0}
+                  step={0.2}
+                  value={ceilingHeight}
+                  onChange={(e) => setCeilingHeight(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent-blue)' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Fire Source Location
+            </h3>
+            <div className="card" style={{ padding: '8px 10px', background: 'var(--bg-main)' }}>
+              <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-blue)', fontWeight: 600 }}>
+                Row {fireRow}, Col {fireCol}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                💡 Click anywhere on canvas to move source.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
               Active Model Driving View
             </h3>
             <div className="card" style={{ padding: '10px', background: 'var(--bg-main)' }}>
