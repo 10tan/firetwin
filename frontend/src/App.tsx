@@ -50,7 +50,7 @@ interface SimulationStep {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'cfd' | 'evacuation' | 'structural' | 'benchmark'>('cfd');
+  const [activeTab, setActiveTab] = useState<'cfd' | 'evacuation' | 'structural' | 'math'>('cfd');
   const [modelMode, setModelMode] = useState<'surrogate' | 'les'>('les');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
@@ -518,30 +518,98 @@ export default function App() {
               <Layers size={15} style={{ display: 'inline', marginRight: '6px' }} />
               Structural Link (Project 2)
             </button>
+            <button
+              onClick={() => setActiveTab('math')}
+              style={{
+                border: 'none',
+                borderRadius: 0,
+                borderBottom: activeTab === 'math' ? '2px solid var(--accent-blue)' : 'none',
+                color: activeTab === 'math' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'math' ? 600 : 400,
+                padding: '12px 16px'
+              }}
+            >
+              <FileText size={15} style={{ display: 'inline', marginRight: '6px' }} />
+              Math & Physics Formulations
+            </button>
           </div>
 
-          {/* Viewport Canvas */}
-          <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="card" style={{ width: '100%', maxWidth: '780px', padding: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Viewport: {activeTab.toUpperCase()} | Time: {current.sim_time_sec}s
-                </span>
-                <span className="badge badge-fire">Max Temp: {current.cfd.max_temp_c}°C</span>
+          {/* Viewport Canvas or Math View */}
+          <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflowY: 'auto' }}>
+            {activeTab === 'math' ? (
+              <div className="card" style={{ width: '100%', maxWidth: '780px', padding: '20px', background: 'var(--bg-card)' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-blue)', marginBottom: '16px' }}>
+                  Governing Partial Differential Equations & Mathematical Formulations
+                </h2>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px' }}>
+                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>1. Buoyancy-Driven Navier-Stokes LES Solver</h4>
+                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
+                      ∂u/∂t + (u · ∇)u = -(1/ρ₀)∇p + (ν + ν_sgs)∇²u + g·β·(T - T₀)ĵ
+                    </p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                      Smagorinsky subgrid-scale turbulence closure: ν_sgs = (C_s · Δ)² √(2 S_ij S_ij)
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>2. P1 Spherical Harmonics Radiative Transfer</h4>
+                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
+                      -∇ · [ (1 / 3(a + σ_s)) ∇G ] + a·G = 4·a·σ·T⁴
+                    </p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                      Radiative heat source term: q_rad = a · (G - 4σT⁴)
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>3. Combustion & t² Fire Growth Rate</h4>
+                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
+                      Q̇(t) = min( α · t², Q̇_peak ) &nbsp;|&nbsp; ∂Y_k/∂t + u · ∇Y_k = D_k ∇²Y_k + ω̇_k
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>4. Thermal-Structural Degradation & Eurocode 3</h4>
+                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
+                      T_ISO(t) = 20 + 345 log₁₀(8 t_min + 1) &nbsp;|&nbsp; dT_s/dt = (q'' / ρ c_p) · (A_m / V)
+                    </p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                      Eurocode steel yield reduction factor k_y(T) and stiffness reduction factor k_E(T).
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontWeight: 600, color: 'var(--text-primary)' }}>5. Helbing Social Force Evacuation Model</h4>
+                    <p className="mono" style={{ fontSize: '12px', margin: '6px 0', color: 'var(--accent-blue)' }}>
+                      m_i (d v_i / dt) = f_des + Σ f_soc + Σ f_wall &nbsp;|&nbsp; v_des = v₀ max(0.2, 1 - 0.65 K_ext)
+                    </p>
+                  </div>
+                </div>
               </div>
-              <canvas
-                ref={canvasRef}
-                width={740}
-                height={420}
-                style={{
-                  width: '100%',
-                  height: '420px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
-                  backgroundColor: '#FAFBFC'
-                }}
-              />
-            </div>
+            ) : (
+              <div className="card" style={{ width: '100%', maxWidth: '780px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span className="mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Viewport: {activeTab.toUpperCase()} | Time: {current.sim_time_sec}s
+                  </span>
+                  <span className="badge badge-fire">Max Temp: {current.cfd.max_temp_c}°C</span>
+                </div>
+                <canvas
+                  ref={canvasRef}
+                  width={740}
+                  height={420}
+                  style={{
+                    width: '100%',
+                    height: '420px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: '#FAFBFC'
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Playback Scrub Control Bar */}
@@ -589,7 +657,7 @@ export default function App() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Peak Heat Release Rate (HRR): <b>{hrrPeak} kW</b>
+                  Peak Heat Release Rate Q̇_peak: <b>{hrrPeak} kW</b>
                 </label>
                 <input
                   type="range"
@@ -604,17 +672,17 @@ export default function App() {
 
               <div>
                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  $t^2$ Fire Growth Rate Alpha
+                  t² Fire Growth Coefficient (α)
                 </label>
                 <select
                   value={fireAlpha}
                   onChange={(e) => setFireAlpha(parseFloat(e.target.value))}
                   style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '12px' }}
                 >
-                  <option value={0.0029}>Slow (0.0029)</option>
-                  <option value={0.0117}>Medium (0.0117)</option>
-                  <option value={0.0469}>Fast (0.0469)</option>
-                  <option value={0.1876}>Ultra-Fast (0.1876)</option>
+                  <option value={0.0029}>Slow (α = 0.0029 kW/s²)</option>
+                  <option value={0.0117}>Medium (α = 0.0117 kW/s²)</option>
+                  <option value={0.0469}>Fast (α = 0.0469 kW/s²)</option>
+                  <option value={0.1876}>Ultra-Fast (α = 0.1876 kW/s²)</option>
                 </select>
               </div>
             </div>
@@ -643,11 +711,11 @@ export default function App() {
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-main)', borderRadius: '6px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Current HRR:</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Current HRR Q̇(t):</span>
                 <span className="mono" style={{ fontWeight: 600 }}>{current.species.hrr_kW} kW</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-main)', borderRadius: '6px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Min Oxygen Level:</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>O₂ Concentration:</span>
                 <span className="mono" style={{ fontWeight: 600 }}>{current.species.min_o2_pct}%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-main)', borderRadius: '6px' }}>
@@ -655,13 +723,19 @@ export default function App() {
                 <span className="mono" style={{ fontWeight: 600 }}>{current.evacuation.escaped_agents} / {current.evacuation.total_agents} ({current.evacuation.evacuation_pct}%)</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-main)', borderRadius: '6px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Steel Temp:</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Steel Temp T_s:</span>
                 <span className="mono" style={{ fontWeight: 600 }}>{current.structural.current_member_temp_c}°C</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-main)', borderRadius: '6px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Steel Yield Factor (ky):</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Yield Factor k_y(T):</span>
                 <span className="mono" style={{ fontWeight: 600, color: current.structural.yield_reduction_ky < 0.5 ? 'var(--hazard-fire)' : 'var(--text-primary)' }}>
                   {current.structural.yield_reduction_ky}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-main)', borderRadius: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Stiffness Factor k_E(T):</span>
+                <span className="mono" style={{ fontWeight: 600 }}>
+                  {current.structural.elasticity_reduction_kE}
                 </span>
               </div>
             </div>
