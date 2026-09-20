@@ -76,13 +76,53 @@ export default function App() {
       const kE = Math.max(0.02, 1.0 - (tempRise > 100 ? (tempRise - 100) * 0.0014 : 0));
       const escaped = Math.min(25, Math.floor(t * (useRLWayfinding ? 0.75 : 0.5)));
 
-      // Grid sample 10x12
+      // Grid sample 10x12 (Room 0: cols 0..3, Room 1: cols 4..7, Room 2: cols 8..11)
+      const fireRow = 7; // Fire at bottom of Room 0
+      const fireCol = 2; // Center of Room 0
+
       const grid: number[][] = [];
       for (let r = 0; r < 10; r++) {
         const row: number[] = [];
         for (let c = 0; c < 12; c++) {
-          const dist = Math.sqrt((r - 2) ** 2 + (c - 5) ** 2);
-          const localT = Math.max(20, tempRise * Math.exp(-dist * 0.35));
+          let localT = 20.0;
+
+          // Wall isolation check
+          const isRoom0 = c <= 3;
+          const isRoom1 = c >= 4 && c <= 7;
+          const isRoom2 = c >= 8;
+
+          if (isRoom0) {
+            // Plume physics in Room 0: rising heat + ceiling layer accumulation
+            const dx = c - fireCol;
+            const dy = fireRow - r; // dy > 0 means above fire
+
+            if (dy >= 0) {
+              // Plume width widens with height
+              const plumeRadius = 1.0 + dy * 0.35;
+              const distFromPlumeAxis = Math.abs(dx);
+              if (distFromPlumeAxis <= plumeRadius) {
+                const plumeT = 20 + tempRise * Math.exp(-Math.pow(distFromPlumeAxis / plumeRadius, 2));
+                localT = Math.max(localT, plumeT);
+              }
+              // Ceiling layer accumulation (r <= 2)
+              if (r <= 2) {
+                const ceilingT = 20 + tempRise * 0.7 * Math.exp(-Math.abs(dx) * 0.2);
+                localT = Math.max(localT, ceilingT);
+              }
+            } else {
+              // Conduction downwards near fire base
+              const distBase = Math.sqrt(dx*dx + dy*dy);
+              localT = Math.max(20, 20 + tempRise * Math.exp(-distBase * 0.8));
+            }
+          } else if (isRoom1 && doorOpen) {
+            // Spillover into Room 1 only if door is open (spill across ceiling r <= 3)
+            if (r <= 3) {
+              const spillDist = c - 3;
+              const spillT = 20 + tempRise * 0.45 * Math.exp(-spillDist * 0.4 - r * 0.3);
+              localT = Math.max(localT, spillT);
+            }
+          }
+
           row.push(Math.round(localT * 10) / 10);
         }
         grid.push(row);
@@ -165,65 +205,90 @@ export default function App() {
 
     ctx.clearRect(0, 0, width, height);
 
-    // Render floorplan walls and background
+    // Render floorplan background
     ctx.fillStyle = '#FAFBFC';
     ctx.fillRect(0, 0, width, height);
 
-    // Wall borders
+    // Mode-specific render (draw grid heatmap first)
+    const grid = current.cfd.temp_grid_sample;
+    const cellW = (width - 20) / grid[0].length;
+    const cellH = (height - 20) / grid.length;
+
+    if (activeTab === 'cfd' || activeTab === 'evacuation') {
+      // Temperature & Smoke Heatmap grid
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r].length; c++) {
+          const temp = grid[r][c];
+          if (temp > 25.0) {
+            const normT = Math.min(1.0, (temp - 20) / 750);
+            let color = 'rgba(240, 173, 78, 0.2)';
+            if (normT > 0.65) {
+              color = `rgba(255, 230, 120, ${0.7 + normT * 0.25})`; // Intense fire core
+            } else if (normT > 0.4) {
+              color = `rgba(220, 50, 40, ${0.5 + normT * 0.35})`; // Deep flame red
+            } else if (normT > 0.15) {
+              color = `rgba(230, 120, 20, ${0.3 + normT * 0.4})`; // Thermal orange
+            } else {
+              color = `rgba(240, 173, 78, ${0.15 + normT * 0.25})`; // Warm yellow
+            }
+            ctx.fillStyle = color;
+            ctx.fillRect(10 + c * cellW, 10 + r * cellH, cellW, cellH);
+
+            // Translucent smoke layer on top in upper ceiling cells (r <= 2)
+            if (r <= 2 && temp > 40.0) {
+              ctx.fillStyle = `rgba(40, 45, 55, ${Math.min(0.6, (temp / 800) * 0.7)})`;
+              ctx.fillRect(10 + c * cellW, 10 + r * cellH, cellW, cellH);
+            }
+          }
+        }
+      }
+
+      // Fire Source pulse indicator at fireRow = 7, fireCol = 2
+      const fireX = 10 + (2 + 0.5) * cellW;
+      const fireY = 10 + (7 + 0.5) * cellH;
+
+      ctx.beginPath();
+      ctx.arc(fireX, fireY, 14 + Math.sin(Date.now() * 0.01) * 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(217, 83, 79, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 10px var(--font-sans)';
+      ctx.fillText('FIRE SOURCE', fireX - 32, fireY + 4);
+    }
+
+    // Outer Wall borders
     ctx.strokeStyle = '#CBD5E1';
     ctx.lineWidth = 4;
     ctx.strokeRect(10, 10, width - 20, height - 20);
 
     // Internal partition walls (Room 0, Room 1, Room 2)
     const roomWidth = (width - 20) / 3;
+    ctx.strokeStyle = '#64748B';
+    ctx.lineWidth = 4;
+
     ctx.beginPath();
+    // Wall between Room 0 and Room 1 with door opening at top if doorOpen is true
     ctx.moveTo(10 + roomWidth, 10);
-    ctx.lineTo(10 + roomWidth, doorOpen ? height * 0.4 : height - 10);
+    ctx.lineTo(10 + roomWidth, doorOpen ? height * 0.35 : height - 10);
+    if (doorOpen) {
+      // Draw door frame indicator
+      ctx.strokeStyle = '#1F4E79';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(10 + roomWidth - 3, height * 0.35, 6, 24);
+      ctx.strokeStyle = '#64748B';
+      ctx.lineWidth = 4;
+    }
+    // Solid wall between Room 1 and Room 2
     ctx.moveTo(10 + roomWidth * 2, 10);
     ctx.lineTo(10 + roomWidth * 2, height - 10);
     ctx.stroke();
 
-    // Mode-specific render
-    if (activeTab === 'cfd') {
-      // Temperature & Smoke Heatmap grid
-      const grid = current.cfd.temp_grid_sample;
-      const cellW = (width - 20) / grid[0].length;
-      const cellH = (height - 20) / grid.length;
-
-      for (let r = 0; r < grid.length; r++) {
-        for (let c = 0; c < grid[r].length; c++) {
-          const temp = grid[r][c];
-          const normT = Math.min(1.0, (temp - 20) / 750);
-          // Color map: 20C (light blue) -> 400C (orange) -> 800C (deep fire red)
-          let color = `rgba(31, 78, 121, 0.08)`;
-          if (normT > 0.05) {
-            const red = Math.floor(255 * normT);
-            const green = Math.floor(180 * (1 - normT));
-            const blue = Math.floor(50 * (1 - normT));
-            color = `rgba(${red}, ${green}, ${blue}, ${0.15 + normT * 0.7})`;
-          }
-          ctx.fillStyle = color;
-          ctx.fillRect(10 + c * cellW, 10 + r * cellH, cellW, cellH);
-        }
-      }
-
-      // Fire Source pulse indicator
-      const fireX = 10 + 2 * cellW;
-      const fireY = 10 + 5 * cellH;
-      ctx.beginPath();
-      ctx.arc(fireX, fireY, 12 + Math.sin(Date.now() * 0.008) * 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(217, 83, 79, 0.85)';
-      ctx.fill();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 10px var(--font-sans)';
-      ctx.fillText('FIRE SOURCE', fireX - 32, fireY + 4);
-
-    } else if (activeTab === 'evacuation') {
-      // Draw Exit indicator
+    if (activeTab === 'evacuation') {
+      // Draw Exit indicator at right wall
       ctx.fillStyle = '#2E7D32';
       ctx.fillRect(width - 14, height / 2 - 25, 8, 50);
       ctx.fillStyle = '#2E7D32';
@@ -237,11 +302,11 @@ export default function App() {
         const posY = 10 + (agent.y / 6.0) * (height - 20);
 
         ctx.beginPath();
-        ctx.arc(posX, posY, 6, 0, Math.PI * 2);
+        ctx.arc(posX, posY, 6.5, 0, Math.PI * 2);
         ctx.fillStyle = useRLWayfinding ? '#1F4E79' : '#F0AD4E';
         ctx.fill();
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
         ctx.stroke();
       });
     }
