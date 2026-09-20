@@ -140,8 +140,107 @@ function MathBlock({ formula, label, description, subFormula }: { formula: strin
   );
 }
 
+function TimeSeriesChart({
+  title,
+  timeSeries,
+  series
+}: {
+  title: string;
+  timeSeries: number[];
+  series: Array<{ name: string; values: number[]; color: string; dash?: boolean }>;
+}) {
+  const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = chartCanvasRef.current;
+    if (!canvas || timeSeries.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const padding = { top: 25, right: 35, bottom: 35, left: 50 };
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Card background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    const plotW = width - padding.left - padding.right;
+    const plotH = height - padding.top - padding.bottom;
+
+    const maxTime = Math.max(...timeSeries, 60);
+    const allVals = series.flatMap(s => s.values);
+    const maxVal = Math.max(...allVals, 1.0) * 1.1;
+    const minVal = Math.min(0, Math.min(...allVals));
+
+    // Grid lines
+    ctx.strokeStyle = '#E3E7EC';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padding.top + (plotH / 4) * i;
+      const val = maxVal - (maxVal - minVal) * (i / 4);
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(width - padding.right, y);
+      ctx.stroke();
+
+      ctx.fillStyle = '#5A6A80';
+      ctx.font = '10px var(--font-sans)';
+      ctx.textAlign = 'right';
+      ctx.fillText(val.toFixed(1), padding.left - 6, y + 3);
+    }
+
+    // X-Axis time labels
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 5; i++) {
+      const x = padding.left + (plotW / 5) * i;
+      const t = (maxTime / 5) * i;
+      ctx.fillText(`${t.toFixed(0)}s`, x, height - 12);
+    }
+
+    // Draw lines
+    series.forEach(s => {
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 2.2;
+      if (s.dash) ctx.setLineDash([5, 4]);
+      else ctx.setLineDash([]);
+
+      ctx.beginPath();
+      s.values.forEach((val, idx) => {
+        const t = timeSeries[idx] || 0;
+        const x = padding.left + (t / maxTime) * plotW;
+        const y = padding.top + plotH - ((val - minVal) / Math.max(0.001, (maxVal - minVal))) * plotH;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+  }, [timeSeries, series]);
+
+  return (
+    <div className="card" style={{ padding: '14px', background: '#FFFFFF' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-blue)' }}>{title}</h4>
+        <div style={{ display: 'flex', gap: '14px' }}>
+          {series.map(s => (
+            <span key={s.name} style={{ fontSize: '11px', color: s.color, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ width: '12px', height: '3px', backgroundColor: s.color, borderRadius: '2px', display: 'inline-block' }} />
+              {s.name}
+            </span>
+          ))}
+        </div>
+      </div>
+      <canvas ref={chartCanvasRef} width={700} height={200} style={{ width: '100%', height: '200px', borderRadius: '4px' }} />
+    </div>
+  );
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'cfd' | 'evacuation' | 'structural' | 'math'>('cfd');
+  const [activeTab, setActiveTab] = useState<'cfd' | 'evacuation' | 'structural' | 'charts' | 'math'>('cfd');
   const [modelMode, setModelMode] = useState<'surrogate' | 'les'>('les');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
@@ -150,6 +249,25 @@ export default function App() {
   const [useRLWayfinding, setUseRLWayfinding] = useState<boolean>(false);
   const [doorOpen, setDoorOpen] = useState<boolean>(true);
   const [scenarioId, setScenarioId] = useState<string>('demo-scen-01');
+
+  const handleDownloadPDF = async () => {
+    try {
+      const res = await fetch(`http://localhost:8000/reports/${scenarioId}/pdf`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `firetwin_report_${scenarioId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn("Fallback PDF generator triggered:", err);
+      window.print();
+    }
+  };
 
   // Simulated live field snapshot history
   const [history, setHistory] = useState<SimulationStep[]>([]);
@@ -495,17 +613,13 @@ export default function App() {
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
             {isPlaying ? 'Pause Run' : 'Start Simulation'}
           </button>
-          <a
-            href={`http://localhost:8000/reports/${scenarioId}/pdf`}
-            target="_blank"
-            rel="noreferrer"
-            style={{ textDecoration: 'none' }}
+          <button
+            onClick={handleDownloadPDF}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <button style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Download size={14} />
-              PDF Report
-            </button>
-          </a>
+            <Download size={14} />
+            PDF Report
+          </button>
         </div>
       </header>
 
@@ -610,6 +724,20 @@ export default function App() {
               Structural Link (Project 2)
             </button>
             <button
+              onClick={() => setActiveTab('charts')}
+              style={{
+                border: 'none',
+                borderRadius: 0,
+                borderBottom: activeTab === 'charts' ? '2px solid var(--accent-blue)' : 'none',
+                color: activeTab === 'charts' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'charts' ? 600 : 400,
+                padding: '12px 16px'
+              }}
+            >
+              <Activity size={15} style={{ display: 'inline', marginRight: '6px' }} />
+              Graphs & Analytics
+            </button>
+            <button
               onClick={() => setActiveTab('math')}
               style={{
                 border: 'none',
@@ -625,9 +753,48 @@ export default function App() {
             </button>
           </div>
 
-          {/* Viewport Canvas or Math View */}
+          {/* Viewport Canvas, Charts, or Math View */}
           <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflowY: 'auto' }}>
-            {activeTab === 'math' ? (
+            {activeTab === 'charts' ? (
+              <div style={{ width: '100%', maxWidth: '780px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <TimeSeriesChart
+                  title="1. Temperature Response (°C): Peak Gas Temp vs Steel Member Temp vs ISO 834 Baseline"
+                  timeSeries={history.map(h => h.sim_time_sec)}
+                  series={[
+                    { name: 'Peak Gas Temp (°C)', values: history.map(h => h.cfd.max_temp_c), color: '#D9534F' },
+                    { name: 'Steel Member Temp (°C)', values: history.map(h => h.structural.current_member_temp_c), color: '#1F4E79' },
+                    { name: 'ISO 834 Curve (°C)', values: history.map(h => Math.round(20 + 345 * Math.log10(8 * (h.sim_time_sec / 60) + 1))), color: '#5A6A80', dash: true }
+                  ]}
+                />
+
+                <TimeSeriesChart
+                  title="2. Combustion Dynamics: Heat Release Rate Q̇(t) vs O₂ Concentration (%)"
+                  timeSeries={history.map(h => h.sim_time_sec)}
+                  series={[
+                    { name: 'HRR Q̇(t) (kW)', values: history.map(h => h.species.hrr_kW), color: '#E67E22' },
+                    { name: 'O₂ Concentration (%)', values: history.map(h => h.species.min_o2_pct * 40), color: '#27AE60' }
+                  ]}
+                />
+
+                <TimeSeriesChart
+                  title="3. Eurocode 3 Material Degradation: Yield Factor k_y(T) & Stiffness Factor k_E(T)"
+                  timeSeries={history.map(h => h.sim_time_sec)}
+                  series={[
+                    { name: 'Yield Reduction k_y(T)', values: history.map(h => h.structural.yield_reduction_ky), color: '#C0392B' },
+                    { name: 'Stiffness Reduction k_E(T)', values: history.map(h => h.structural.elasticity_reduction_kE), color: '#2980B9' }
+                  ]}
+                />
+
+                <TimeSeriesChart
+                  title="4. Pedestrian Evacuation Rate: Cumulative Escaped Agents vs Remaining"
+                  timeSeries={history.map(h => h.sim_time_sec)}
+                  series={[
+                    { name: 'Escaped Agents', values: history.map(h => h.evacuation.escaped_agents), color: '#2E7D32' },
+                    { name: 'Remaining In Danger', values: history.map(h => h.evacuation.remaining_agents), color: '#D9534F', dash: true }
+                  ]}
+                />
+              </div>
+            ) : activeTab === 'math' ? (
               <div className="card" style={{ width: '100%', maxWidth: '780px', padding: '20px', background: 'var(--bg-card)' }}>
                 <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-blue)', marginBottom: '16px' }}>
                   Governing Partial Differential Equations & Mathematical Formulations

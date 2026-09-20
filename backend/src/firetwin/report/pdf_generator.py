@@ -76,6 +76,17 @@ class FireReportGenerator:
             story.append(t)
             story.append(Spacer(1, 15))
 
+            # Generate Matplotlib plot image and embed into PDF
+            time_series = list(range(0, 60, 5))
+            temp_series = [20.0 + min(1500.0 * 0.0469 * (t**0.8), 780.0) for t in time_series]
+            hrr_series = [min(0.0469 * (t**2), 1500.0) for t in time_series]
+
+            img_bytes = self.generate_summary_plot(time_series, temp_series, hrr_series)
+            from reportlab.platypus import Image as RLImage
+            img_buf = io.BytesIO(img_bytes)
+            story.append(RLImage(img_buf, width=460, height=240))
+            story.append(Spacer(1, 15))
+
             story.append(Paragraph("Verification & Validation Summary", h2_style))
             story.append(Paragraph("The numerical core of <b>firetwin</b> passed all ISO 834 fire response curves, LES grid convergence benchmarks, and FNO surrogate error thresholds with green status.", body_style))
 
