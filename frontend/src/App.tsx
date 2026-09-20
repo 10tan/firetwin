@@ -49,27 +49,39 @@ interface SimulationStep {
   };
 }
 
-function MathBlock({ formula, label, description }: { formula: string; label: string; description?: string }) {
+function MathBlock({ formula, label, description, subFormula }: { formula: string; label: string; description?: string; subFormula?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const subContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const renderMath = () => {
-      if (containerRef.current && (window as any).katex) {
-        try {
-          (window as any).katex.render(formula, containerRef.current, {
-            displayMode: true,
-            throwOnError: false
-          });
-        } catch (err) {
-          console.error(err);
+      if ((window as any).katex) {
+        if (containerRef.current) {
+          try {
+            (window as any).katex.render(formula, containerRef.current, {
+              displayMode: true,
+              throwOnError: false
+            });
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        if (subContainerRef.current && subFormula) {
+          try {
+            (window as any).katex.render(subFormula, subContainerRef.current, {
+              displayMode: true,
+              throwOnError: false
+            });
+          } catch (err) {
+            console.error(err);
+          }
         }
       }
     };
     renderMath();
-    // Retry if KaTeX script loaded asynchronously
-    const timer = setTimeout(renderMath, 300);
+    const timer = setTimeout(renderMath, 250);
     return () => clearTimeout(timer);
-  }, [formula]);
+  }, [formula, subFormula]);
 
   return (
     <div style={{ padding: '14px 16px', background: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
@@ -92,7 +104,34 @@ function MathBlock({ formula, label, description }: { formula: string; label: st
       >
         <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-blue)' }}>{formula}</span>
       </div>
-      {description && (
+      {subFormula && (
+        <div style={{ marginTop: '8px' }}>
+          {description && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: '11px', marginBottom: '4px' }}>
+              {description}
+            </p>
+          )}
+          <div
+            ref={subContainerRef}
+            style={{
+              padding: '8px 12px',
+              background: '#FFFFFF',
+              borderRadius: '6px',
+              border: '1px solid #E2E8F0',
+              color: 'var(--text-primary)',
+              fontSize: '13px',
+              overflowX: 'auto',
+              minHeight: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <span className="mono" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{subFormula}</span>
+          </div>
+        </div>
+      )}
+      {!subFormula && description && (
         <p style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '8px', lineHeight: 1.4 }}>
           {description}
         </p>
@@ -598,31 +637,43 @@ export default function App() {
                   <MathBlock
                     label="1. Incompressible Boussinesq Navier-Stokes LES Solver"
                     formula="\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = -\frac{1}{\rho_0}\nabla p + (\nu + \nu_{\text{sgs}})\nabla^2\mathbf{u} + g \beta (T - T_0)\hat{\mathbf{j}}"
-                    description="Smagorinsky subgrid-scale turbulence closure: \nu_{\text{sgs}} = (C_s \Delta)^2 \sqrt{2 S_{ij} S_{ij}}, \text{ where } S_{ij} = \frac{1}{2}\left(\nabla \mathbf{u} + (\nabla \mathbf{u})^T\right)."
+                    description="Smagorinsky subgrid-scale turbulence closure formulation:"
+                    subFormula="\nu_{\text{sgs}} = (C_s \Delta)^2 \sqrt{2 S_{ij} S_{ij}}, \quad S_{ij} = \frac{1}{2}\left(\nabla \mathbf{u} + (\nabla \mathbf{u})^T\right)"
                   />
 
                   <MathBlock
                     label="2. P1 Spherical Harmonics Radiative Heat Transfer"
                     formula="-\nabla \cdot \left[ \frac{1}{3(a + \sigma_s)} \nabla G \right] + a G = 4 a \sigma T^4"
-                    description="Net radiative heat source/sink term: q_{\text{rad}} = a \left( G - 4 \sigma T^4 \right)."
+                    description="Net radiative heat source/sink equation:"
+                    subFormula="q_{\text{rad}} = a \left( G - 4 \sigma T^4 \right)"
                   />
 
                   <MathBlock
                     label="3. Combustion & t² Fire Growth Rate"
-                    formula="\dot{Q}(t) = \min\left( \alpha t^2, \dot{Q}_{\text{peak}} \right) \quad \text{and} \quad \frac{\partial Y_k}{\partial t} + \mathbf{u} \cdot \nabla Y_k = D_k \nabla^2 Y_k + \dot{\omega}_k"
-                    description="Advection-diffusion-reaction for soot, toxic smoke, and oxygen depletion."
+                    formula="\dot{Q}(t) = \min\left( \alpha t^2, \dot{Q}_{\text{peak}} \right)"
+                    description="Species advection-diffusion-reaction field equation:"
+                    subFormula="\frac{\partial Y_k}{\partial t} + \mathbf{u} \cdot \nabla Y_k = D_k \nabla^2 Y_k + \dot{\omega}_k"
                   />
 
                   <MathBlock
                     label="4. Thermal-Structural Degradation & Eurocode 3 Standards"
                     formula="T_{\text{ISO}}(t) = 20 + 345 \log_{10}(8 t_{\text{min}} + 1) \quad \text{and} \quad \frac{d T_s}{d t} = \frac{q''}{\rho c_p} \left( \frac{A_m}{V} \right)"
-                    description="Eurocode 3 yield strength reduction factor k_y(T) and stiffness reduction factor k_E(T)."
+                    description="Eurocode 3 yield strength & stiffness reduction functions:"
+                    subFormula="f_y(T) = k_y(T) f_{y,0}, \quad E(T) = k_E(T) E_0"
                   />
 
                   <MathBlock
                     label="5. Helbing Social Force Pedestrian Evacuation Model"
-                    formula="m_i \frac{d \mathbf{v}_i}{d t} = \frac{v_i^{\text{des}} \mathbf{e}_i^{\text{des}} - \mathbf{v}_i}{\tau} + \sum_{j \neq i} \mathbf{f}_{ij}^{\text{soc}} + \sum_{w} \mathbf{f}_{iw}^{\text{wall}}"
-                    description="Pedestrian speed attenuation in smoke: v_i^{\text{des}} = v_0 \max\left(0.2, 1 - 0.65 K_{\text{ext}}\right)."
+                    formula="m_i \frac{d \mathbf{v}_i}{d t} = \mathbf{f}_i^{\text{des}} + \sum_{j \neq i} \mathbf{f}_{ij}^{\text{soc}} + \sum_{w} \mathbf{f}_{iw}^{\text{wall}}"
+                    description="Desired force & pedestrian walking speed attenuation in smoke:"
+                    subFormula="\mathbf{f}_i^{\text{des}} = \frac{v_i^{\text{des}} \mathbf{e}_i^{\text{des}} - \mathbf{v}_i}{\tau}, \quad v_i^{\text{des}} = v_0 \max\left(0.2, 1 - 0.65 K_{\text{ext}}\right)"
+                  />
+
+                  <MathBlock
+                    label="6. Fourier Neural Operator (FNO2d) Spectral Convolution"
+                    formula="v_{l+1}(x) = \sigma \left( W v_l(x) + \mathcal{F}^{-1} \left( R_{\phi} \cdot \mathcal{F}(v_l) \right)(x) \right)"
+                    description="Spectral domain weight tensor multiplication:"
+                    subFormula="\left(R_{\phi} \cdot \hat{v}_l\right)(k) = \sum_{j=1}^{d} \hat{R}_{\phi}(k)_{ij} \hat{v}_l(k)_j"
                   />
                 </div>
               </div>
