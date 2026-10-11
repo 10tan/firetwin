@@ -202,14 +202,16 @@ def get_structural_link(scenario_id: str):
     return sim["project2_export"]
 
 @app.get("/reports/{scenario_id}/pdf")
+@app.get("/api/reports/{scenario_id}/pdf")
 def get_pdf_report(scenario_id: str):
-    metrics = scenarios_db.get(scenario_id, {}).get("summary_metrics", {
+    scen = scenarios_db.get(scenario_id) or {}
+    metrics = scen.get("summary_metrics") or {
         "max_temp_c": 780.0,
         "peak_hrr_kW": 1500.0,
         "rem_yield_pct": 42.5,
         "evac_pct": 96.0,
         "fno_l2_error": 0.038
-    })
+    }
     pdf_bytes = report_generator.generate_pdf_report(scenario_id, metrics)
     return Response(content=pdf_bytes, media_type="application/pdf", headers={
         "Content-Disposition": f"attachment; filename=firetwin_report_{scenario_id}.pdf"

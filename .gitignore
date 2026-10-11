@@ -1,6 +1,22 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
 .pytest_cache/
+.coverage
+htmlcov/
 dist/
-node_modules
+build/
+*.egg-info/
+backend/*.pdf
+backend/*.png
+*.pdf
+
+# Node
+node_modules/
+frontend/dist/
+frontend/node_modules/
 .DS_Store
+*.log
+.vercel
