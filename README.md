@@ -338,13 +338,19 @@ Where $C_{O_2}(t')$ is the volumetric oxygen concentration percentage ($\%\,\tex
 
 Under NFPA 101 Life Safety Code requirements, an enclosure is tenable if and only if the Available Safe Egress Time exceeds the Required Safe Egress Time:
 
-$$ASET = \min \left\{ t(T_{layer} = 200^\circ\text{C}), \, t(z_{layer} = 1.80\,\text{m}), \, t(FED = 0.30), \, t(K_{ext} = 0.20\,\text{m}^{-1}) \right\}$$
+$$
+\text{ASET} = \min \left\{ t(T_{\text{layer}} = 200^\circ\text{C}), \, t(z_{\text{layer}} = 1.80\,\text{m}), \, t(\text{FED} = 0.30), \, t(K_{\text{ext}} = 0.20\,\text{m}^{-1}) \right\}
+$$
 
-$$RSET = t_{detection} + t_{alarm} + t_{pre-evac} + t_{travel}$$
+$$
+\text{RSET} = t_{\text{detection}} + t_{\text{alarm}} + t_{\text{pre-evac}} + t_{\text{travel}}
+$$
 
-$$\Delta t_{margin} = ASET - RSET > 0$$
+$$
+\Delta t_{\text{margin}} = \text{ASET} - \text{RSET} > 0
+$$
 
-If $\Delta t_{margin} \le 0$, life safety is compromised and compartment re-engineering (SHEV ventilation or fire barriers) is mandatory.
+If $\Delta t_{\text{margin}} \le 0$, life safety is compromised and compartment re-engineering (SHEV ventilation or fire barriers) is mandatory.
 
 ---
 
@@ -468,7 +474,7 @@ cd ../frontend
 npm install
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) or [http://localhost:5173](http://localhost:5173) in your browser.
+
 
 ---
 

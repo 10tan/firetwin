@@ -1,18 +1,39 @@
+from __future__ import annotations
+from typing import Dict, Any, Tuple
+from contextlib import nullcontext
+import numpy as np
+
 try:
     import torch
     import torch.nn as nn
     import torch.nn.functional as F
     TORCH_AVAILABLE = True
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     torch = None
     nn = None
     F = None
     TORCH_AVAILABLE = False
 
-import numpy as np
-from typing import Dict, Any, Tuple
+if not TORCH_AVAILABLE:
+    class _DummyTorch:
+        Tensor = Any
+        cfloat = None
+        float32 = None
+        def zeros(self, *a, **k): return None
+        def rand(self, *a, **k): return None
+        def einsum(self, *a, **k): return None
+        def cat(self, *a, **k): return None
+        def tensor(self, *a, **k): return None
+        def from_numpy(self, *a, **k): return None
+        def no_grad(self): return nullcontext()
+    torch = _DummyTorch()
+    class _DummyNN:
+        Parameter = None
+        Module = object
+    nn = _DummyNN()
 
 BaseModule = nn.Module if TORCH_AVAILABLE else object
+
 
 class SpectralConv2d(BaseModule):
     """

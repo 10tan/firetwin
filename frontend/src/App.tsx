@@ -14,8 +14,8 @@ import {
   Layers,
   CheckCircle,
   AlertTriangle,
-  Compass
 } from 'lucide-react';
+import { generateClientSidePDF } from './report/pdfGenerator';
 
 interface SimulationStep {
   step: number;
@@ -368,19 +368,41 @@ export default function App() {
           res = null;
         }
       }
-      if (!res || !res.ok) throw new Error(`HTTP ${res?.status || 500}`);
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `firetwin_report_${scenarioId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      if (res && res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `firetwin_report_${scenarioId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        return;
+      }
     } catch (err) {
-      console.warn("Fallback PDF generator triggered:", err);
-      window.print();
+      console.warn("Backend PDF endpoint unavailable, generating client-side report:", err);
+    }
+
+    // Direct Client-Side 3-Page Vector PDF Generation (NEVER screenshot / NEVER window.print!)
+    try {
+      generateClientSidePDF(scenarioId, {
+        roomLength,
+        roomWidth,
+        roomHeight: ceilingHeight,
+        currentStep,
+        shevOpenPct: roofVentPct,
+        hvacMode,
+        history,
+        fireSources,
+        doors: [
+          { id: 1, open: door1Open, mode: door1Mode },
+          { id: 2, open: door2Open, mode: door2Mode }
+        ],
+        customWalls
+      });
+    } catch (clientErr) {
+      console.error("Client-side PDF generation error:", clientErr);
     }
   };
 
