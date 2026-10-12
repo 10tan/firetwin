@@ -162,7 +162,7 @@ $$-\nabla \cdot \mathbf{q}_r = \kappa \left( G - 4 \sigma T^4 \right)$$
 #### Heat Release Rate (HRR) Dynamics
 Fire heat output follows a standard NFPA/Eurocode parabolic growth profile modulated by fuel availability and ventilation limitations:
 
-$$\dot{Q}(t) = \min\left( \sum_{k} \alpha_k (t - t_{ign,k})^2, \, \dot{Q}_{peak} \right)$$
+$$\dot{Q}(t) = \min\left( \sum_{k} \alpha_k (t - t_{ign,k})^2, ~ \dot{Q}_{peak} \right)$$
 
 | Growth Regime | Coefficient $\alpha$ ($\text{kW/s}^2$) | Typical Fuel Commodity |
 |---|---|---|
@@ -173,10 +173,10 @@ $$\dot{Q}(t) = \min\left( \sum_{k} \alpha_k (t - t_{ign,k})^2, \, \dot{Q}_{peak}
 
 Total released thermal energy accumulated over time:
 
-$$E_{thermal}(t) = \int_{0}^t \dot{Q}(t') \, dt' \quad [\text{MJ}]$$
+$$E_{thermal}(t) = \int_{0}^t \dot{Q}(t') dt' \quad [\text{MJ}]$$
 
 #### Species Advection-Diffusion-Reaction Equation
-Chemical species mass fractions $Y_m \in \{Y_{O_2}, Y_{CO_2}, Y_{CO}, Y_{soot}\}$ evolve according to:
+Chemical species mass fractions $Y_m \in \lbrace Y_{O_2}, Y_{CO_2}, Y_{CO}, Y_{soot} \rbrace$ evolve according to:
 
 $$\frac{\partial Y_m}{\partial t} + \mathbf{u} \cdot \nabla Y_m = D_m \nabla^2 Y_m + \dot{\omega}_m$$
 
@@ -278,7 +278,7 @@ Where $\tau \approx 0.5\,\text{s}$ is the acceleration relaxation time.
 #### Walking Speed Attenuation in Smoke:
 Smoke visibility reduction and ocular irritation diminish pedestrian free-walking speed according to the Jin empirical model:
 
-$$v_i^{des}(t) = v_0 \cdot \max\left( 0.20, \, 1.0 - 0.65 K_{ext}(t) \right)$$
+$$v_i^{des}(t) = v_0 \cdot \max\left( 0.20, ~ 1.0 - 0.65 K_{ext}(t) \right)$$
 
 Where $K_{ext} = 2.303 \times D$ is optical extinction coefficient ($\text{m}^{-1}$), $D$ is optical smoke density, and $v_0 = 1.25\,\text{m/s}$ is unobstructed walking speed.
 
@@ -318,14 +318,14 @@ The toxic tenability index $FED$ quantifies the cumulative physiological incapac
 $$FED_{total}(t) = FED_{CO}(t) + FED_{O_2}(t)$$
 
 #### Carbon Monoxide Component:
-$$FED_{CO}(t) = \int_{0}^t \frac{C_{CO}(t')^{1.036} \cdot V_E}{35000} \, dt'$$
+$$FED_{CO}(t) = \int_{0}^t \frac{C_{CO}(t')^{1.036} \cdot V_E}{35000} dt'$$
 
-Where $C_{CO}$ is concentration in ppm, $V_E = 20\,\text{L/min}$ is hyperventilation minute volume.
+Where $C_{CO}$ is concentration in ppm, $V_E = 20\text{ L/min}$ is hyperventilation minute volume.
 
 #### Oxygen Hypoxia Component:
 $$FED_{O_2}(t) = \int_{0}^t \frac{dt'}{\exp\left[ 8.13 - 0.54 \left(20.9 - C_{O_2}(t')\right) \right]}$$
 
-Where $C_{O_2}(t')$ is the volumetric oxygen concentration percentage ($\%\,\text{vol}$).
+Where $C_{O_2}(t')$ is the volumetric oxygen concentration percentage ($\% \text{ vol}$).
 
 #### Tenability Criteria (ISO 13571):
 - **Safe Zone**: $FED < 0.30$ (Statistically protects sensitive populations).
@@ -339,7 +339,7 @@ Where $C_{O_2}(t')$ is the volumetric oxygen concentration percentage ($\%\,\tex
 Under NFPA 101 Life Safety Code requirements, an enclosure is tenable if and only if the Available Safe Egress Time exceeds the Required Safe Egress Time:
 
 $$
-\text{ASET} = \min \left\{ t(T_{\text{layer}} = 200^\circ\text{C}), \, t(z_{\text{layer}} = 1.80\,\text{m}), \, t(\text{FED} = 0.30), \, t(K_{\text{ext}} = 0.20\,\text{m}^{-1}) \right\}
+\text{ASET} = \min \left\lbrace t(T_{\text{layer}} = 200^\circ\text{C}), ~ t(z_{\text{layer}} = 1.80\text{ m}), ~ t(\text{FED} = 0.30), ~ t(K_{\text{ext}} = 0.20\text{ m}^{-1}) \right\rbrace
 $$
 
 $$
