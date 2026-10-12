@@ -194,15 +194,8 @@ $$\dot{\omega}_{soot} = y_{soot} \frac{\dot{Q}(t)}{\Delta h_c}, \quad \dot{\omeg
 
 In multi-compartment enclosures, buoyancy stratifies gases into a distinct upper hot smoke layer and lower ambient cold layer.
 
-```
-+----------------------------------------------------+
-| Ceiling                                            |
-|   ================ Upper Hot Smoke Layer ========= |  T_u, rho_u
-|   ~~~~~~~~~~~~~~~~ Interface Height z_layer ~~~~~~ |
-|                                                    |  T_l, rho_l
-| Floor                                              |
-+----------------------------------------------------+
-```
+![Two-Zone Fire Dynamics & Smoke Layer Volumetric Filling Model](docs/assets/two_zone_smoke_model.png)
+
 
 #### Mass Conservation of the Upper Layer:
 $$\frac{d M_u}{d t} = \dot{m}_{plume} - \dot{m}_{vent,out} + \dot{m}_{door}$$
@@ -247,22 +240,27 @@ Nonlinear material property degradation factors:
 
 $$f_y(T_s) = k_y(T_s) f_{y,20^\circ\text{C}}, \quad E_s(T_s) = k_E(T_s) E_{s,20^\circ\text{C}}$$
 
-```
-Reduction Factor k_y, k_E
-1.0 +-----+
-    |     \
-    |      \  k_E (Stiffness)
-0.5 |       \
-    |        \     k_y (Yield Strength)
-    |         \___
-0.0 +-----+-----+-----+-----+
-   20    400   600   800  1000  Temperature (°C)
-```
+![Eurocode 3 (EN 1993-1-2) Material Degradation Curves](docs/assets/eurocode3_degradation.png)
 
 Numerical values per EN 1993-1-2 Table 3.1:
-$$k_y(T_s) = \begin{cases} 1.0 & T_s \le 400^\circ\text{C} \\ 1.0 - \frac{T_s - 400}{200} \times 0.77 & 400^\circ\text{C} < T_s \le 600^\circ\text{C} \\ 0.23 - \frac{T_s - 600}{200} \times 0.17 & 600^\circ\text{C} < T_s \le 800^\circ\text{C} \\ 0.06 - \frac{T_s - 800}{200} \times 0.06 & 800^\circ\text{C} < T_s \le 1000^\circ\text{C} \end{cases}$$
 
-$$k_E(T_s) = \begin{cases} 1.0 & T_s \le 100^\circ\text{C} \\ 1.0 - \frac{T_s - 100}{400} \times 0.40 & 100^\circ\text{C} < T_s \le 500^\circ\text{C} \\ 0.60 - \frac{T_s - 500}{100} \times 0.29 & 500^\circ\text{C} < T_s \le 600^\circ\text{C} \\ 0.31 - \frac{T_s - 600}{200} \times 0.22 & 600^\circ\text{C} < T_s \le 800^\circ\text{C} \end{cases}$$
+$$
+k_y(T_s) = \begin{cases} 
+1.0 & T_s \le 400^\circ\text{C} \\ 
+1.0 - \frac{T_s - 400}{200} \times 0.77 & 400^\circ\text{C} < T_s \le 600^\circ\text{C} \\ 
+0.23 - \frac{T_s - 600}{200} \times 0.17 & 600^\circ\text{C} < T_s \le 800^\circ\text{C} \\ 
+0.06 - \frac{T_s - 800}{200} \times 0.06 & 800^\circ\text{C} < T_s \le 1000^\circ\text{C} 
+\end{cases}
+$$
+
+$$
+k_E(T_s) = \begin{cases} 
+1.0 & T_s \le 100^\circ\text{C} \\ 
+1.0 - \frac{T_s - 100}{400} \times 0.40 & 100^\circ\text{C} < T_s \le 500^\circ\text{C} \\ 
+0.60 - \frac{T_s - 500}{100} \times 0.29 & 500^\circ\text{C} < T_s \le 600^\circ\text{C} \\ 
+0.31 - \frac{T_s - 600}{200} \times 0.22 & 600^\circ\text{C} < T_s \le 800^\circ\text{C} 
+\end{cases}
+$$
 
 ---
 
@@ -307,21 +305,7 @@ Where:
 - $W$ is a local linear transformation matrix.
 - $\sigma(\cdot)$ is the GELU activation function.
 
-```
-Input Field a(x) ---> [Lift: P] ---> [FNO Block 1] ---> [FNO Block 2] ---> [Project: Q] ---> Solution u(x)
-                                           |
-                              +------------+------------+
-                              |                         |
-                           Conv1D (W)              FFT2D
-                              |                         |
-                              |                    R_phi * F(v)
-                              |                         |
-                              |                       IFFT2D
-                              |                         |
-                              +---------> (+) <---------+
-                                           |
-                                        sigma (GELU)
-```
+![Fourier Neural Operator 2D Spectral Convolution Architecture](docs/assets/fno_architecture.png)
 
 **Graceful Fallback**: In environments without PyTorch (e.g. lightweight serverless containers), `fno_surrogate.py` falls back to a high-speed NumPy Gaussian convolution kernel preserving real-time execution.
 
@@ -339,7 +323,9 @@ $$FED_{CO}(t) = \int_{0}^t \frac{C_{CO}(t')^{1.036} \cdot V_E}{35000} \, dt'$$
 Where $C_{CO}$ is concentration in ppm, $V_E = 20\,\text{L/min}$ is hyperventilation minute volume.
 
 #### Oxygen Hypoxia Component:
-$$FED_{O_2}(t) = \int_{0}^t \frac{dt'}{\exp\left[ 8.13 - 0.54 (20.9 - \%O_2(t')) \right]}$$
+$$FED_{O_2}(t) = \int_{0}^t \frac{dt'}{\exp\left[ 8.13 - 0.54 \left(20.9 - C_{O_2}(t')\right) \right]}$$
+
+Where $C_{O_2}(t')$ is the volumetric oxygen concentration percentage ($\%\,\text{vol}$).
 
 #### Tenability Criteria (ISO 13571):
 - **Safe Zone**: $FED < 0.30$ (Statistically protects sensitive populations).
@@ -391,29 +377,8 @@ If $\Delta t_{margin} \le 0$, life safety is compromised and compartment re-engi
 
 The frontend is built with React 18 and Vanilla CSS, engineered with responsive layout controls to prevent vertical scrolling:
 
-```
-+---------------------------------------------------------------------------------------------------------+
-| [🔥 firetwin] Coupled Multiphysics Fire & Hazard Simulation Platform           [Pause] [PDF Report]     |
-+------------------------------------------+-------------------------------------------+------------------+
-| BUILDING LAYOUT CONFIGURATOR             | [Wind CFD & Heatmap] [Users Evac] ...     | FIRE PARAMETERS  |
-| [◀ 560px ▶] [560px] [650px]              |-------------------------------------------| Peak HRR Q_max   |
-| [All] [Room & Grid] [Doors] [Fires] ...  | Tool: MOVE | Walls: 2 | Time: 25s         | [---O----] 1500kW|
-|                                          |                                           | Growth Rate alpha|
-| Preset: [3-Compartment Office v]         |  +-------------------------------------+  | [Fast (0.0469) v]|
-| Story:  [Story 1 (Ground)]               |  |  [FIRE 1]                           |  |                  |
-|                                          |  |                                     |  | EGRESS STRATEGY  |
-| Length L: 8.0m  Width W: 6.0m  H: 3.0m   |  |        Wall 1               Wall 2  |  | [x] Dynamic RL   |
-| [---O--]        [---O--]       [--O---]  |  |           |                    |   |  |     Wayfinding   |
-|                                          |  |           |                    |   |  |                  |
-| Door 1: [Open Passage v]  Door 2: [EI60] |  |           o                    o   |  | LIVE TELEMETRY   |
-| SHEV Vent: 50%  HVAC: [EXTRACT]          |  |                                    |  | Current HRR: 730kW|
-|                                          |  +-------------------------------------+  | O2 Level: 19.4%  |
-| Multi-Fire Sources: [Fire 1] [➕ Add]    | Wall Inspector: Length 4.8m / 6.0m        | Escaped: 18 / 24 |
-| Alpha: 0.0469  Peak HRR: 1500 kW         | [100%] [75%] [50%] [30%]  [Solid Wall v]  | Steel Temp: 342°C|
-+------------------------------------------+-------------------------------------------+------------------+
-| [Play] [Reset]  Step 25 / 60   [==========================O=============================] Scrub Bar    |
-+---------------------------------------------------------------------------------------------------------+
-```
+![FireTwin Interactive UI and Building Layout Configurator](docs/assets/ui_configurator.png)
+
 
 ### Configurator Highlights:
 - **Default 560px Width**: Prevents vertical stacking, allowing controls to sit side-by-side in clean 2-column and 3-column rows.
